@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("./DB");
+// npm install bcrypt
 const bcrypt = require("bcrypt");
 const router = express.Router();
 
@@ -34,11 +35,43 @@ router.get("/produits/:id", (req, res) => {
     });
 });
 
+/* Route : Récupérer un client par son ID
+* Get /api/clients/:id
+*/
+
+router.get("/clients/:id", (req, res) => {
+    db.query(`SELECT * FROM client WHERE Identifiant_Client = ?`, [req.params.id], (error, result) => {
+        if (error){
+            return(res.status(500).json({message : "Erreur du serveur"}));
+        }
+        if (result.length === 0){
+            return(res.status(404).json({message : `Produit ${req.params.id} non trouvé`}))
+        }
+        res.json(result);
+    });
+});
+
+/* Route : Récupérer un client par son ID LIKE
+* Get /api/clients/:id
+*/
+
+router.get("/clients/like/:id", (req, res) => {
+    db.query(`SELECT * FROM client WHERE Identifiant_Client LIKE "%${req.params.id}%"`, (error, result) => {
+        if (error){
+            return(res.status(500).json({message : "Erreur du serveur"}));
+        }
+        if (result.length === 0){
+            return(res.status(404).json({message : `Produit ${req.params.id} non trouvé`}))
+        }
+        res.json(result);
+    });
+});
+
 /* Route : Enregistrer un client
 * Get /api/client/register
 */
 
-router.post("/client/register", (req, res) => {
+router.post("/clients/register", (req, res) => {
     const {nomPrenom, date, Tel, Mail, MDP} = req.body;
     console.log(nomPrenom, date,Tel, Mail, MDP)
 
@@ -71,5 +104,3 @@ router.post("/client/register", (req, res) => {
         })
     })
 })
-
-/* npm install bcrypt */
