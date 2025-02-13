@@ -18,7 +18,7 @@ module.exports = router;
  * Get /api/produits
  */
 
-router.get("/produits", verifyToken, (req, res) => {
+router.get("/produits", (req, res) => {
   db.query("SELECT * FROM article", (error, result) => {
     if (error) {
       return res.status(500).json({ message: "Erreur du serveur" });
@@ -178,7 +178,7 @@ router.post("/clients/register", (req, res) => {
  * Get /api/client/pwmodif/:id
  */
 
-router.put("/clients/pwmodif/:id", (req, res) => {
+router.put("/clients/pwmodif/:id", verifyToken, (req, res) => {
   const pw = req.body.pw;
 
   db.query(
@@ -260,7 +260,7 @@ router.post("/clients/login/connexion", (req, res) => {
         const token = sign(
           { id: client.Identifiant_Client, mail: client.Mail_Client },
           process.env.JWT_SECRET,
-          { expiresIn: process.env.JWT_EXPIRES_IN },
+          { expiresIn: "2h" },
         );
 
         res.json({
@@ -283,7 +283,7 @@ router.post("/clients/login/connexion", (req, res) => {
  * Get /api/vendeur
  */
 
-router.get("/vendeur", (req, res) => {
+router.get("/vendeur", verifyToken, (req, res) => {
   db.query(`SELECT * FROM vendeur`, (error, result) => {
     if (error) {
       return res.status(500).json({ message: "Erreur du serveur" });
@@ -299,7 +299,7 @@ router.get("/vendeur", (req, res) => {
  * Get /api/vendeur/:id
  */
 
-router.get("/vendeur/:id", (req, res) => {
+router.get("/vendeur/:id", verifyToken, (req, res) => {
   db.query(
     `SELECT * FROM vendeur WHERE Id_Vendeur = ?`,
     [req.params.id],
@@ -321,7 +321,7 @@ router.get("/vendeur/:id", (req, res) => {
  * Get /api/vendeur/:id
  */
 
-router.get("/vendeur/like/:id", (req, res) => {
+router.get("/vendeur/like/:id", verifyToken, (req, res) => {
   db.query(
     `SELECT * FROM vendeur WHERE Id_Vendeur LIKE "%${req.params.id}%"`,
     (error, result) => {
@@ -351,7 +351,7 @@ router.get("/vendeur/like/:id", (req, res) => {
  * }
  */
 
-router.post("/vendeur/register", (req, res) => {
+router.post("/vendeur/register", verifyToken, (req, res) => {
   const { nomPrenom, date, Tel, Mail, MDP, Salaire } = req.body;
   console.log(nomPrenom, date, Tel, Mail, MDP, Salaire);
 
@@ -402,7 +402,7 @@ router.post("/vendeur/register", (req, res) => {
  * Get /api/paniers
  */
 
-router.get("/paniers", (req, res) => {
+router.get("/paniers", verifyToken, (req, res) => {
   db.query("SELECT * FROM panier", (error, result) => {
     if (error) {
       return res.status(500).json({ message: "Erreur du serveur" });
@@ -415,7 +415,7 @@ router.get("/paniers", (req, res) => {
  * Get /api/paniers/:id
  */
 
-router.get("/paniers/:id", (req, res) => {
+router.get("/paniers/:id", verifyToken, (req, res) => {
   db.query(
     `SELECT * FROM panier WHERE Id_Panier = ?`,
     [req.params.id],
@@ -437,7 +437,7 @@ router.get("/paniers/:id", (req, res) => {
  * Get /api/paniers/:id
  */
 
-router.get("/paniers/client/:id", (req, res) => {
+router.get("/paniers/client/:id", verifyToken, (req, res) => {
   db.query(
     `SELECT * FROM panier WHERE Identifiant_Client = ?`,
     [req.params.id],
@@ -459,7 +459,7 @@ router.get("/paniers/client/:id", (req, res) => {
  * Get /api/paniers/client/open/:id
  */
 
-router.get("/paniers/client/open/:id", (req, res) => {
+router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
   db.query(
     `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "Ouvert"`,
     [req.params.id],
@@ -483,7 +483,7 @@ router.get("/paniers/client/open/:id", (req, res) => {
  * Get /api/CB
  */
 
-router.get("/CB", (req, res) => {
+router.get("/CB", verifyToken, (req, res) => {
   db.query(`SELECT * FROM carte_bancaire`, (error, result) => {
     if (error) {
       return res.status(500).json({ message: "Erreur du serveur" });
@@ -499,7 +499,7 @@ router.get("/CB", (req, res) => {
  * Get /api/CB/client/:id
  */
 
-router.get("/CB/client/:id", (req, res) => {
+router.get("/CB/client/:id", verifyToken, (req, res) => {
   db.query(
     `SELECT *FROM carte_bancaire AS C WHERE C.Identifiant_Client = ?`,
     [req.params.id],
@@ -521,7 +521,7 @@ router.get("/CB/client/:id", (req, res) => {
  * Get /api/CB/client/like/:nom
  */
 
-router.get("/CB/client/like/:nom", (req, res) => {
+router.get("/CB/client/like/:nom", verifyToken, (req, res) => {
   db.query(
     `SELECT * FROM carte_bancaire AS C WHERE C.Identifiant_Client = (SELECT CL.Identifiant_Client FROM client AS CL WHERE CL.Nom_Prenom_Client LIKE "%${req.params.nom}%")`,
     (error, result) => {
@@ -542,7 +542,7 @@ router.get("/CB/client/like/:nom", (req, res) => {
  * Get /api/CB/register
  */
 
-router.post("/CB/register", (req, res) => {
+router.post("/CB/register", verifyToken, (req, res) => {
   const { Type_CB, Numero_CB, Date_expiration_CB, Nom_CB, Identifiant_Client } =
     req.body;
   console.log(
@@ -605,7 +605,7 @@ router.post("/CB/register", (req, res) => {
  * }
  */
 
-router.post("/lignedepanier/register", (req, res) => {
+router.post("/lignedepanier/register", verifyToken, (req, res) => {
   const { Id_Panier, Quantite_Ligne_de_panier, Id_Article } = req.body;
 
   db.query(
@@ -665,7 +665,7 @@ router.post("/lignedepanier/register", (req, res) => {
  * }
  */
 
-router.post("/commande/register", (req, res) => {
+router.post("/commande/register", verifyToken, (req, res) => {
   const { Numero_de_voie, Adresse, Ville, Code_Postale, Id_Panier } = req.body;
   let Id_Adresse_1 = "";
 
