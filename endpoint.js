@@ -9,6 +9,9 @@ require("dotenv").config();
 // npm install jsonwebtoken
 const jwt = require("jsonwebtoken");
 const { sign } = require("jsonwebtoken");
+/* npm install --save-dev jest
+ * npm install supertest
+ */
 
 module.exports = router;
 
@@ -175,43 +178,102 @@ router.post("/clients/register", (req, res) => {
 });
 
 /* Route : Modification du mot de passe d'un client
- * Get /api/client/pwmodif/:id
+ * Get /api/clients/pwmodif/:id
  */
 
 router.put("/clients/pwmodif/:id", verifyToken, (req, res) => {
   const pw = req.body.pw;
 
+  bcrypt.hash(pw, 10, (error, hash) => {
+    if (error) {
+      return res.status(500).json({ message: "Erreur de hash" });
+    }
+    db.query(
+      `UPDATE client SET MDP_Client = ? WHERE Identifiant_Client = ?`,
+      [hash, req.params.id],
+      (error, result) => {
+        if (error) {
+          return res.status(500).json({
+            message: "Erreur lors de la modification du mot de passe",
+          });
+        }
+        res.status(201).json({
+          message: "Modification du mot de passe réussie",
+          newPW: pw,
+        });
+      },
+    );
+  });
+});
+
+/* Route : Modification Nom et prénom client
+ * Put /api/clients/nommodif/:id
+ */
+
+router.put("/clients/nommodif/:id", verifyToken, (req, res) => {
+  const { nom } = req.body;
+  const id = req.params.id;
   db.query(
-    `SELECT * FROM client WHERE Identifiant_Client = ?`,
-    [req.params.id],
+    "UPDATE client SET Nom_Prenom_Client = ? WHERE Identifiant_Client = ?",
+    [nom, id],
     (error, result) => {
       if (error) {
+        console.log(error);
         return res.status(500).json({ message: "Erreur du serveur" });
       }
-      if (result.length < 1) {
-        return res.status(400).json({ message: "Client non trouvé" });
-      } else {
-        bcrypt.hash(pw, 10, (error, hash) => {
-          if (error) {
-            return res.status(500).json({ message: "Erreur de hash" });
-          }
-          db.query(
-            `UPDATE client SET MDP_Client = ? WHERE Identifiant_Client = ?`,
-            [hash, req.params.id],
-            (error, result) => {
-              if (error) {
-                return res.status(500).json({
-                  message: "Erreur lors de la modification du mot de passe",
-                });
-              }
-              res.status(201).json({
-                message: "Modification du mot de passe réussie",
-                nouveau_mot_de_passe: pw,
-              });
-            },
-          );
-        });
+      res
+        .status(201)
+        .json({ message: "Modification réussie", nouveauNom: nom });
+    },
+  );
+});
+
+/* Route : Modification Mail client
+ * Put /api/clients/mailmodif/:id
+ */
+
+router.put("/clients/mailmodif/:id", verifyToken, (req, res) => {
+  const { mail } = req.body;
+  const id = req.params.id;
+
+  db.query(
+    "UPDATE client SET Mail_Client = ? WHERE Identifiant_Client = ?",
+    [mail, id],
+    (error, result) => {
+      if (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Erreur du serveur" });
       }
+      res
+        .status(201)
+        .json({ message: "Modification réussie", nouveauMail: mail });
+    },
+  );
+});
+
+/* Route : Modification Mail client
+ * Put /api/clients/adressemodif/:id
+ */
+
+router.put("/clients/adressemodif/:id", verifyToken, (req, res) => {
+  const { num, rue, ville, code } = req.body;
+  const id = req.params.id;
+
+  db.query(
+    "UPDATE adresse SET Numero_Voie = ?, Nom_Type_Voie = ?, Nom_commune_Adresse = ?, Code_postal_Voie = ? WHERE Identifiant_Client = ?",
+    [num, rue, ville, code, id],
+    (error, result) => {
+      if (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      res.status(201).json({
+        message: "Modification réussie",
+        num: num,
+        rue: rue,
+        ville: ville,
+        code: code,
+      });
     },
   );
 });
@@ -229,11 +291,13 @@ router.post("/clients/login/connexion", (req, res) => {
 
   db.query(
     // Requête préparée
-    `SELECT * FROM client WHERE Mail_Client = ?`,
+    `SELECT *
+     FROM client
+     WHERE Mail_Client = ?`,
     [mail],
     (error, result) => {
       if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
+        return res.status(500).json({ message: "Erreur du serveur 1" });
       }
       if (result.length === 0) {
         return res
@@ -248,7 +312,7 @@ router.post("/clients/login/connexion", (req, res) => {
         if (error) {
           return res
             .status(500)
-            .json({ message: "Erreur du serveur", error: error });
+            .json({ message: "Erreur du serveur 2", error: error });
         }
         if (!isMatch) {
           return res
@@ -260,18 +324,47 @@ router.post("/clients/login/connexion", (req, res) => {
         const token = sign(
           { id: client.Identifiant_Client, mail: client.Mail_Client },
           process.env.JWT_SECRET,
-          { expiresIn: "2h" },
+          { expiresIn: "30d" },
         );
 
-        res.json({
-          message: "Connexion réussie",
-          token,
-          client: {
-            id: client.Identifiant_Client,
-            nom: client.Nom_Prenom_Client,
-            mail: client.Mail_Client,
+        db.query(
+          `SELECT * FROM adresse WHERE Identifiant_Client = ?`,
+          [client.Identifiant_Client],
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: "Erreur du server" });
+            }
+            if (result.length === 0) {
+              return res.json({
+                message: "Connexion sans adresse réussie",
+                token,
+                client: {
+                  id: client.Identifiant_Client,
+                  nom: client.Nom_Prenom_Client,
+                  mail: client.Mail_Client,
+                },
+              });
+            }
+
+            const adresse = result[0];
+
+            res.json({
+              message: "Connexion avec adresse réussie",
+              token,
+              client: {
+                id: client.Identifiant_Client,
+                nom: client.Nom_Prenom_Client,
+                mail: client.Mail_Client,
+              },
+              adresse: {
+                NumeroVoie: adresse.Numero_Voie,
+                NomVoie: adresse.Nom_Type_Voie,
+                CodePostal: adresse.Code_postal_Voie,
+                NomVille: adresse.Nom_commune_Adresse,
+              },
+            });
           },
-        });
+        );
       });
     },
   );
@@ -472,7 +565,7 @@ router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
           .status(404)
           .json({ message: `Produit ${req.params.id} non trouvé` });
       }
-      res.json(result);
+      res.json(result[0]);
     },
   );
 });
@@ -545,15 +638,7 @@ router.get("/CB/client/like/:nom", verifyToken, (req, res) => {
 router.post("/CB/register", verifyToken, (req, res) => {
   const { Type_CB, Numero_CB, Date_expiration_CB, Nom_CB, Identifiant_Client } =
     req.body;
-  console.log(
-    Type_CB,
-    Numero_CB,
-    Date_expiration_CB,
-    Nom_CB,
-    Identifiant_Client,
-  );
   let New_Numero_CB = Numero_CB.slice(0, 4) + "XXXXXXXX" + Numero_CB.slice(-4);
-  console.log(New_Numero_CB);
 
   // Vérifie que l'adresse mail n'est pas déjà utilisé
   db.query(
@@ -579,7 +664,6 @@ router.post("/CB/register", verifyToken, (req, res) => {
           ],
           (error, result) => {
             if (error) {
-              console.log(error);
               return res
                 .status(500)
                 .json({ message: "Erreur lors de l'inscription" });
@@ -596,52 +680,173 @@ router.post("/CB/register", verifyToken, (req, res) => {
 
 // ======================== LIGNE DE PANIER ======================== //
 
-/* Route : Enregistrer une ligne de panier
- * Get /api/lignedepanier/register
+router.get("/lignedepanier/:id", verifyToken, (req, res) => {
+  const id = req.params.id;
+
+  db.query(
+    "SELECT * FROM ligne_de_panier WHERE Id_Panier = ?",
+    [id],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      res.json(result);
+    },
+  );
+});
+
+/* Route : Enregistrer ou ajouter à une ligne de panier
+ * Get /api/lignedepanier/add
  * {
  *   "Id_Panier": "",
- *   "Quantite_Ligne_de_panier": "",
  *   "Id_Article": ""
  * }
  */
 
-router.post("/lignedepanier/register", verifyToken, (req, res) => {
-  const { Id_Panier, Quantite_Ligne_de_panier, Id_Article } = req.body;
+router.post("/lignedepanier/add", verifyToken, (req, res) => {
+  const { Id_Panier, Id_Article } = req.body;
 
   db.query(
     `SELECT * FROM panier WHERE Id_Panier = ?`,
     [Id_Panier],
     (error, result) => {
       if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
+        return res.status(500).json({ message: "Erreur du serveur 1" });
       }
       if (result.length === 0) {
-        return res.status(404).json({ message: "Panier non trouvé" });
+        return res.status(404).json({ message: "Panier non trouvé 1" });
       } else {
         db.query(
           `SELECT * FROM article WHERE Id_Article = ?`,
           [Id_Article],
           (error, result) => {
             if (error) {
-              return res.status(500).json({ message: "Erreur du serveur" });
+              return res.status(500).json({ message: "Erreur du serveur 2" });
             }
             if (result.length === 0) {
-              return res.status(404).json({ message: "Article non trouvé" });
+              return res.status(404).json({ message: "Article non trouvé 2" });
             } else {
               db.query(
-                `INSERT INTO ligne_de_panier (Id_Panier, Quantite_Ligne_de_panier, Prix_unitaire_Ligne_de_panier, Id_Article) VALUES (?, ?, 0, ?)`,
-                [Id_Panier, Quantite_Ligne_de_panier, Id_Article],
+                `SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?`,
+                [Id_Article, Id_Panier],
                 (error, result) => {
                   if (error) {
-                    return res.status(500).json({
-                      message:
-                        "Erreur lors de la création de la ligne de panier",
-                    });
+                    return res
+                      .status(500)
+                      .json({ message: "Erreur du serveur 3" });
                   }
-                  res.status(201).json({
-                    message: "Inscription réussie",
-                    Ligne_Id: result.insertId,
-                  });
+                  if (result.length === 0) {
+                    db.query(
+                      `INSERT INTO ligne_de_panier (Id_Panier, Quantite_Ligne_de_panier, Prix_unitaire_Ligne_de_panier, Id_Article) VALUES (?, 1, 0, ?)`,
+                      [Id_Panier, Id_Article],
+                      (error, result) => {
+                        if (error) {
+                          return res.status(500).json({
+                            message:
+                              "Erreur lors de la création de la ligne de panier 1",
+                          });
+                        }
+                        res.status(201).json({
+                          message: "Ajout réussie",
+                          Ligne_Id: result.insertId,
+                        });
+                      },
+                    );
+                  } else {
+                    db.query(
+                      "UPDATE ligne_de_panier SET Quantite_Ligne_de_panier = Quantite_Ligne_de_panier + 1 WHERE Id_Article = ? AND Id_Panier = ?",
+                      [Id_Article, Id_Panier],
+                      (req, res) => {
+                        if (error) {
+                          return res.status(500).json({
+                            message:
+                              "Erreur lors de la création de la ligne de panier 2",
+                          });
+                        }
+                      },
+                    );
+                  }
+                },
+              );
+            }
+          },
+        );
+      }
+    },
+  );
+});
+
+/* Route : Soustraire à ou supprimer une ligne de panier
+ * Get /api/lignedepanier/sub
+ * {
+ *   "Id_Panier": "",
+ *   "Id_Article": ""
+ * }
+ */
+
+router.post("/lignedepanier/sub", verifyToken, (req, res) => {
+  const { Id_Panier, Id_Article } = req.body;
+
+  db.query(
+    `SELECT * FROM panier WHERE Id_Panier = ?`,
+    [Id_Panier],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur 1" });
+      }
+      if (result.length === 0) {
+        return res.status(404).json({ message: "Panier non trouvé 1" });
+      } else {
+        db.query(
+          `SELECT * FROM article WHERE Id_Article = ?`,
+          [Id_Article],
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: "Erreur du serveur 2" });
+            }
+            if (result.length === 0) {
+              return res.status(404).json({ message: "Article non trouvé 2" });
+            } else {
+              db.query(
+                `SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?`,
+                [Id_Article, Id_Panier],
+                (error, result) => {
+                  if (error) {
+                    return res
+                      .status(500)
+                      .json({ message: "Erreur du serveur 3" });
+                  }
+                  if (result.Quantite_Ligne_de_panier === 1) {
+                    db.query(
+                      `DELETE FROM ligne_de_panier WHERE Id_Panier = ? AND Id_Article = ?`,
+                      [Id_Panier, Id_Article],
+                      (error, result) => {
+                        if (error) {
+                          return res.status(500).json({
+                            message:
+                              "Erreur lors de la suppression de la ligne de panier",
+                          });
+                        }
+                        res.status(201).json({
+                          message: "Ajout réussie",
+                          Ligne_Id: result.insertId,
+                        });
+                      },
+                    );
+                  } else {
+                    db.query(
+                      "UPDATE ligne_de_panier SET Quantite_Ligne_de_panier = Quantite_Ligne_de_panier - 1 WHERE Id_Article = ? AND Id_Panier = ?",
+                      [Id_Article, Id_Panier],
+                      (req, res) => {
+                        if (error) {
+                          return res.status(500).json({
+                            message:
+                              "Erreur lors de la soustraction à la ligne de panier",
+                          });
+                        }
+                      },
+                    );
+                  }
                 },
               );
             }
@@ -690,16 +895,9 @@ router.post("/commande/register", verifyToken, (req, res) => {
             }
             if (result.length === 0) {
               db.query(
-                `INSERT INTO adresse (Bis_Ter_Numero_de_voie, Nom_commune_Adresse, Nom_Type_Voie, Code_postal_Voie, Numero_Voie, Type_Voie, Adresse_Ville)
-                                VALUES (0, ?, ?, ?, ?, ?, ?)`,
-                [
-                  Ville,
-                  Adresse,
-                  Code_Postale,
-                  Numero_de_voie,
-                  Adresse.split(" ")[0],
-                  Code_Postale,
-                ],
+                `INSERT INTO adresse (Bis_Ter_Numero_de_voie, Nom_commune_Adresse, Nom_Type_Voie, Code_postal_Voie, Numero_Voie, Adresse_Ville)
+                                VALUES (0, ?, ?, ?, ?, ?)`,
+                [Ville, Adresse, Code_Postale, Numero_de_voie, Code_Postale],
                 (error, result) => {
                   if (error) {
                     return res
@@ -745,6 +943,66 @@ router.post("/commande/register", verifyToken, (req, res) => {
           },
         );
       }
+    },
+  );
+});
+
+// ======================== ADRESSE ======================== //
+
+router.post("/adresse/register", (req, res) => {
+  const { Numero_de_voie, Adresse, Ville, Code_Postale, Id_Client } = req.body;
+
+  db.query(
+    `SELECT * FROM ville WHERE Adresse_Ville = ?`,
+    [Code_Postale],
+    (error, result) => {
+      if (result.length === 0) {
+        db.query(
+          `INSERT INTO ville (Adresse_Ville, Nom_Ville) VALUES (?, ?)`,
+          [Code_Postale, Ville],
+          (error, result) => {
+            if (error) {
+              console.log(error);
+              return res.status(500).json({ message: "Erreur du serveur" });
+            }
+          },
+        );
+      }
+      if (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      db.query(
+        `SELECT * FROM adresse WHERE Identifiant_Client = ?`,
+        [Id_Client],
+        (error, resu) => {
+          if (resu.length === 0) {
+            db.query(
+              `INSERT INTO adresse (Bis_Ter_Numero_de_voie, Nom_commune_Adresse, Nom_Type_Voie, Code_postal_Voie, Numero_Voie, Identifiant_Client, Adresse_Ville)
+         VALUES (0, ?, ?, ?, ?, ?, ?)`,
+              [
+                Ville,
+                Adresse,
+                Code_Postale,
+                Numero_de_voie,
+                Id_Client,
+                Code_Postale,
+              ],
+              (error, result) => {
+                if (error) {
+                  return res.status(500).json({ message: "Erreur du serveur" });
+                }
+                res.status(201).json({
+                  message: "Adresse enregistrée",
+                });
+              },
+            );
+          }
+          if (error) {
+            return res.status(500).json({ message: "Erreur du serveur" });
+          }
+        },
+      );
     },
   );
 });
