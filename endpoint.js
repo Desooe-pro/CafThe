@@ -1023,7 +1023,7 @@ router.post("/lignedepanier/supr", verifyToken, (req, res) => {
 // ======================== COMMANDE ======================== //
 
 /* Route : Enregistrer une commande
- * Get /api/commande/register
+ * POST /api/commande/register
  * {
  *   "Numero_de_voie": "15",
  *   "Adresse": "Rue de la Paix",
@@ -1111,6 +1111,17 @@ router.post("/commande/register", verifyToken, (req, res) => {
 });
 
 // ======================== ADRESSE ======================== //
+
+/* Route : Enregistrer une adresse
+ * POST /api/adresse/register
+ * {
+ *   "Numero_de_voie": "",
+ *   "Adresse": "",
+ *    "Ville": "",
+ *   "Code_Postale": "",
+ *   "Id_Client": ""
+ * }
+ */
 
 router.post("/adresse/register", (req, res) => {
   const { Numero_de_voie, Adresse, Ville, Code_Postale, Id_Client } = req.body;
