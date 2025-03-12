@@ -994,22 +994,28 @@ router.post("/lignedepanier/supr", verifyToken, (req, res) => {
                       .status(500)
                       .json({ message: "Erreur du serveur 3" });
                   }
-                  db.query(
-                    `DELETE FROM ligne_de_panier WHERE Id_Panier = ? AND Id_Article = ?`,
-                    [Id_Panier, Id_Article],
-                    (error, result) => {
-                      if (error) {
-                        return res.status(500).json({
-                          message:
-                            "Erreur lors de la suppression de la ligne de panier",
+                  if (result.length === 0) {
+                    return res
+                      .status(404)
+                      .json({ message: "Ligne non trouvé" });
+                  } else {
+                    db.query(
+                      `DELETE FROM ligne_de_panier WHERE Id_Panier = ? AND Id_Article = ?`,
+                      [Id_Panier, Id_Article],
+                      (error, result) => {
+                        if (error) {
+                          return res.status(500).json({
+                            message:
+                              "Erreur lors de la suppression de la ligne de panier",
+                          });
+                        }
+                        res.status(201).json({
+                          message: "Suppression réussie",
+                          Ligne_Id: result.insertId,
                         });
-                      }
-                      res.status(201).json({
-                        message: "Suppression réussie",
-                        Ligne_Id: result.insertId,
-                      });
-                    },
-                  );
+                      },
+                    );
+                  }
                 },
               );
             }
