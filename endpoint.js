@@ -572,7 +572,7 @@ router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
 
 // ======================== CB ======================== //
 
-/* Route : Récupérer une CB
+/* Route : Récupérer les CB
  * Get /api/CB
  */
 
@@ -633,6 +633,13 @@ router.get("/CB/client/like/:nom", verifyToken, (req, res) => {
 
 /* Route : Enregistrer une CB
  * Get /api/CB/register
+ * {
+ *   "Type_CB": "",
+ *   "Numero_CB": "",
+ *   "Date_expiration_CB": "",
+ *   "Nom_CB": "",
+ *   "Identifiant_Client": ""
+ * }
  */
 
 router.post("/CB/register", verifyToken, (req, res) => {
@@ -680,6 +687,10 @@ router.post("/CB/register", verifyToken, (req, res) => {
 
 // ======================== LIGNE DE PANIER ======================== //
 
+/* Route : Récuperer une ligne de panier
+ * Get /api/lignedepanier/:id
+ */
+
 router.get("/lignedepanier/:id", verifyToken, (req, res) => {
   const id = req.params.id;
 
@@ -696,7 +707,7 @@ router.get("/lignedepanier/:id", verifyToken, (req, res) => {
 });
 
 /* Route : Enregistrer ou ajouter à une ligne de panier
- * Get /api/lignedepanier/add
+ * Post /api/lignedepanier/add
  * {
  *   "Id_Panier": "",
  *   "Id_Article": ""
@@ -777,7 +788,7 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
 });
 
 /* Route : Soustraire à ou supprimer une ligne de panier
- * Get /api/lignedepanier/sub
+ * POST /api/lignedepanier/sub
  * {
  *   "Id_Panier": "",
  *   "Id_Article": ""
@@ -816,7 +827,7 @@ router.post("/lignedepanier/sub", verifyToken, (req, res) => {
                       .status(500)
                       .json({ message: "Erreur du serveur 3" });
                   }
-                  if (result.Quantite_Ligne_de_panier === 1) {
+                  if (result[0].Quantite_Ligne_de_panier === "1") {
                     db.query(
                       `DELETE FROM ligne_de_panier WHERE Id_Panier = ? AND Id_Article = ?`,
                       [Id_Panier, Id_Article],
@@ -828,7 +839,7 @@ router.post("/lignedepanier/sub", verifyToken, (req, res) => {
                           });
                         }
                         res.status(201).json({
-                          message: "Ajout réussie",
+                          message: "Suppression réussie",
                           Ligne_Id: result.insertId,
                         });
                       },
@@ -847,6 +858,158 @@ router.post("/lignedepanier/sub", verifyToken, (req, res) => {
                       },
                     );
                   }
+                },
+              );
+            }
+          },
+        );
+      }
+    },
+  );
+});
+
+/* Route : Mettre à jour la quantité d'une ligne de panier
+ * POST /api/lignedepanier/maj
+ * {
+ *   "Id_Panier": "",
+ *   "Id_Article": "",
+ *   "nouveauNombre": "",
+ * }
+ */
+
+router.post("/lignedepanier/maj", verifyToken, (req, res) => {
+  const { Id_Panier, Id_Article, nouveauNombre } = req.body;
+
+  db.query(
+    `SELECT * FROM panier WHERE Id_Panier = ?`,
+    [Id_Panier],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur 1" });
+      }
+      if (result.length === 0) {
+        return res.status(404).json({ message: "Panier non trouvé 1" });
+      } else {
+        db.query(
+          `SELECT * FROM article WHERE Id_Article = ?`,
+          [Id_Article],
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: "Erreur du serveur 2" });
+            }
+            if (result.length === 0) {
+              return res.status(404).json({ message: "Article non trouvé 2" });
+            }
+            if (result[0].Nombre_de_vente_Article < nouveauNombre) {
+              return res
+                .status(300)
+                .json({ message: "Pas assez d'aticles en stock" });
+            } else {
+              db.query(
+                `SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?`,
+                [Id_Article, Id_Panier],
+                (error, result) => {
+                  if (error) {
+                    return res
+                      .status(500)
+                      .json({ message: "Erreur du serveur 3" });
+                  }
+                  if (nouveauNombre === "0" || nouveauNombre === 0) {
+                    db.query(
+                      `DELETE FROM ligne_de_panier WHERE Id_Panier = ? AND Id_Article = ?`,
+                      [Id_Panier, Id_Article],
+                      (error, result) => {
+                        if (error) {
+                          return res.status(500).json({
+                            message:
+                              "Erreur lors de la suppression de la ligne de panier",
+                          });
+                        }
+                        res.status(201).json({
+                          message: "Suppression réussie",
+                          Ligne_Id: result.insertId,
+                        });
+                      },
+                    );
+                  }
+                  db.query(
+                    "UPDATE ligne_de_panier SET Quantite_Ligne_de_panier = ? WHERE Id_Article = ? AND Id_Panier = ?",
+                    [nouveauNombre, Id_Article, Id_Panier],
+                    (req, res) => {
+                      if (error) {
+                        return res.status(500).json({
+                          message:
+                            "Erreur lors de la soustraction à la ligne de panier",
+                        });
+                      }
+                    },
+                  );
+                },
+              );
+            }
+          },
+        );
+      }
+    },
+  );
+});
+
+/* Route : Supprimer une ligne de panier
+ * POST /api/lignedepanier/supr
+ * {
+ *   "Id_Panier": "",
+ *   "Id_Article": ""
+ * }
+ */
+
+router.post("/lignedepanier/supr", verifyToken, (req, res) => {
+  const { Id_Panier, Id_Article } = req.body;
+
+  db.query(
+    `SELECT * FROM panier WHERE Id_Panier = ?`,
+    [Id_Panier],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur 1" });
+      }
+      if (result.length === 0) {
+        return res.status(404).json({ message: "Panier non trouvé 1" });
+      } else {
+        db.query(
+          `SELECT * FROM article WHERE Id_Article = ?`,
+          [Id_Article],
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: "Erreur du serveur 2" });
+            }
+            if (result.length === 0) {
+              return res.status(404).json({ message: "Article non trouvé 2" });
+            } else {
+              db.query(
+                `SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?`,
+                [Id_Article, Id_Panier],
+                (error, result) => {
+                  if (error) {
+                    return res
+                      .status(500)
+                      .json({ message: "Erreur du serveur 3" });
+                  }
+                  db.query(
+                    `DELETE FROM ligne_de_panier WHERE Id_Panier = ? AND Id_Article = ?`,
+                    [Id_Panier, Id_Article],
+                    (error, result) => {
+                      if (error) {
+                        return res.status(500).json({
+                          message:
+                            "Erreur lors de la suppression de la ligne de panier",
+                        });
+                      }
+                      res.status(201).json({
+                        message: "Suppression réussie",
+                        Ligne_Id: result.insertId,
+                      });
+                    },
+                  );
                 },
               );
             }
