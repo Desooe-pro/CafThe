@@ -554,7 +554,7 @@ router.get("/paniers/client/:id", verifyToken, (req, res) => {
 
 router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
   db.query(
-    `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "Ouvert"`,
+    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
     [req.params.id],
     (error, result) => {
       if (error) {
@@ -565,7 +565,93 @@ router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
           .status(404)
           .json({ message: `Produit ${req.params.id} non trouvé` });
       }
-      res.json(result[0]);
+      db.query(
+        `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "Ouvert"`,
+        [req.params.id],
+        (error, result2) => {
+          if (error) {
+            return res.status(500).json({ message: "Erreur du serveur" });
+          }
+          if (result2.length === 0) {
+            return res
+              .status(404)
+              .json({ message: `Pas de panier ouvert trouvé` });
+          }
+          res.json(result2[0]);
+        },
+      );
+    },
+  );
+});
+
+/* Route : Récupérer les paniers fermés par l'ID du client
+ * Get /api/paniers/client/closed/:id
+ */
+
+router.get("/paniers/client/closed/:id", verifyToken, (req, res) => {
+  db.query(
+    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
+    [req.params.id],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      if (result.length === 0) {
+        return res
+          .status(404)
+          .json({ message: `Produit ${req.params.id} non trouvé` });
+      }
+      db.query(
+        `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "Fermé"`,
+        [req.params.id],
+        (error, result2) => {
+          if (error) {
+            return res.status(500).json({ message: "Erreur du serveur" });
+          }
+          if (result2.length === 0) {
+            return res
+              .status(404)
+              .json({ message: `Pas de panier fermé trouvé` });
+          }
+          res.json(result2);
+        },
+      );
+    },
+  );
+});
+
+/* Route : Récupérer les paniers en commande par l'ID du client
+ * Get /api/paniers/client/cammanded/:id
+ */
+
+router.get("/paniers/client/commanded/:id", verifyToken, (req, res) => {
+  db.query(
+    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
+    [req.params.id],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      if (result.length === 0) {
+        return res
+          .status(404)
+          .json({ message: `Produit ${req.params.id} non trouvé` });
+      }
+      db.query(
+        `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "En commande"`,
+        [req.params.id],
+        (error, result2) => {
+          if (error) {
+            return res.status(500).json({ message: "Erreur du serveur" });
+          }
+          if (result2.length === 0) {
+            return res
+              .status(404)
+              .json({ message: `Pas de panier en commande trouvé` });
+          }
+          res.json(result2);
+        },
+      );
     },
   );
 });
@@ -716,6 +802,7 @@ router.get("/lignedepanier/:id", verifyToken, (req, res) => {
 
 router.post("/lignedepanier/add", verifyToken, (req, res) => {
   const { Id_Panier, Id_Article } = req.body;
+  let prix = 0;
 
   db.query(
     `SELECT * FROM panier WHERE Id_Panier = ?`,
@@ -737,6 +824,7 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
             if (result.length === 0) {
               return res.status(404).json({ message: "Article non trouvé 2" });
             } else {
+              prix = result[0].Prix_unitaire_Article;
               db.query(
                 `SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?`,
                 [Id_Article, Id_Panier],
@@ -748,8 +836,8 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
                   }
                   if (result.length === 0) {
                     db.query(
-                      `INSERT INTO ligne_de_panier (Id_Panier, Quantite_Ligne_de_panier, Prix_unitaire_Ligne_de_panier, Id_Article) VALUES (?, 1, 0, ?)`,
-                      [Id_Panier, Id_Article],
+                      `INSERT INTO ligne_de_panier (Id_Panier, Quantite_Ligne_de_panier, Prix_unitaire_Ligne_de_panier, Id_Article) VALUES (?, 1, ?, ?)`,
+                      [Id_Panier, prix, Id_Article],
                       (error, result) => {
                         if (error) {
                           return res.status(500).json({
@@ -1040,40 +1128,97 @@ router.post("/lignedepanier/supr", verifyToken, (req, res) => {
  */
 
 router.post("/commande/register", verifyToken, (req, res) => {
-  const { Numero_de_voie, Adresse, Ville, Code_Postale, Id_Panier } = req.body;
+  const {
+    Numero_de_voie,
+    Adresse,
+    Ville,
+    Code_Postale,
+    Id_Panier,
+    Identifiant_Client,
+  } = req.body;
   let Id_Adresse_1 = "";
 
   db.query(
-    `SELECT * FROM panier WHERE Id_Panier = ? AND Status = "Ouvert"`,
-    [Id_Panier],
+    `SELECT * FROM ville WHERE Adresse_Ville = ? AND Nom_Ville = ?`,
+    [Code_Postale, Ville],
     (error, result) => {
-      if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
-      }
       if (result.length === 0) {
-        return res
-          .status(404)
-          .json({ message: "Panier non trouvé ou déjà commandé" });
-      } else {
         db.query(
-          `SELECT * FROM adresse WHERE Numero_Voie = ? AND Nom_Type_Voie = ? AND Nom_commune_Adresse = ? AND Code_postal_Voie = ?`,
-          [Numero_de_voie, Adresse, Ville, Code_Postale],
+          `INSERT INTO ville (Adresse_Ville, Nom_Ville) VALUES (?, ?)`,
+          [Code_Postale, Ville],
           (error, result) => {
             if (error) {
+              console.log(error);
               return res.status(500).json({ message: "Erreur du serveur" });
             }
-            if (result.length === 0) {
-              db.query(
-                `INSERT INTO adresse (Bis_Ter_Numero_de_voie, Nom_commune_Adresse, Nom_Type_Voie, Code_postal_Voie, Numero_Voie, Adresse_Ville)
-                                VALUES (0, ?, ?, ?, ?, ?)`,
-                [Ville, Adresse, Code_Postale, Numero_de_voie, Code_Postale],
-                (error, result) => {
-                  if (error) {
-                    return res
-                      .status(500)
-                      .json({ message: "Erreur du serveur" });
-                  }
-                  Id_Adresse_1 = result.insertId;
+          },
+        );
+      }
+      if (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      db.query(
+        `SELECT * FROM panier WHERE Id_Panier = ? AND Status = "Ouvert"`,
+        [Id_Panier],
+        (error, result) => {
+          if (error) {
+            return res.status(500).json({ message: "Erreur du serveur 1" });
+          }
+          if (result.length === 0) {
+            return res
+              .status(404)
+              .json({ message: "Panier non trouvé ou déjà commandé" });
+          } else {
+            db.query(
+              `SELECT * FROM adresse WHERE Numero_Voie = ? AND Nom_Type_Voie = ? AND Nom_commune_Adresse = ? AND Code_postal_Voie = ?`,
+              [Numero_de_voie, Adresse, Ville, Code_Postale],
+              (error, result) => {
+                if (error) {
+                  return res
+                    .status(500)
+                    .json({ message: "Erreur du serveur 2" });
+                }
+                if (result.length === 0) {
+                  db.query(
+                    `INSERT INTO adresse (Bis_Ter_Numero_de_voie, Nom_commune_Adresse, Nom_Type_Voie, Code_postal_Voie, Numero_Voie, Identifiant_Client, Adresse_Ville)
+                   VALUES (0, ?, ?, ?, ?, ?, ?)`,
+                    [
+                      Ville,
+                      Adresse,
+                      Code_Postale,
+                      Numero_de_voie,
+                      Identifiant_Client,
+                      Code_Postale,
+                    ],
+                    (error, result) => {
+                      if (error) {
+                        console.log(error);
+                        return res
+                          .status(500)
+                          .json({ message: "Erreur du serveur 3" });
+                      }
+                      Id_Adresse_1 = result.insertId;
+                      db.query(
+                        `INSERT INTO commande (Id_Panier, Id_Adresse_1) VALUES (?, ?)`,
+                        [Id_Panier, Id_Adresse_1],
+                        (error, result) => {
+                          if (error) {
+                            return res.status(500).json({
+                              message:
+                                "Erreur lors de la création de la commande",
+                            });
+                          }
+                          res.status(201).json({
+                            message: "Commande réussie",
+                            Commande_Id: result.insertId,
+                          });
+                        },
+                      );
+                    },
+                  );
+                } else {
+                  Id_Adresse_1 = result[0].Id_Adresse;
                   db.query(
                     `INSERT INTO commande (Id_Panier, Id_Adresse_1) VALUES (?, ?)`,
                     [Id_Panier, Id_Adresse_1],
@@ -1089,29 +1234,12 @@ router.post("/commande/register", verifyToken, (req, res) => {
                       });
                     },
                   );
-                },
-              );
-            } else {
-              Id_Adresse_1 = result[0].Id_Adresse;
-              db.query(
-                `INSERT INTO commande (Id_Panier, Id_Adresse_1) VALUES (?, ?)`,
-                [Id_Panier, Id_Adresse_1],
-                (error, result) => {
-                  if (error) {
-                    return res.status(500).json({
-                      message: "Erreur lors de la création de la commande",
-                    });
-                  }
-                  res.status(201).json({
-                    message: "Commande réussie",
-                    Commande_Id: result.insertId,
-                  });
-                },
-              );
-            }
-          },
-        );
-      }
+                }
+              },
+            );
+          }
+        },
+      );
     },
   );
 });
