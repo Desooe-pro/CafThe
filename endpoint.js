@@ -1217,7 +1217,7 @@ router.post("/commande/register", verifyToken, (req, res) => {
                           if (error) {
                             return res.status(500).json({
                               message:
-                                "Erreur lors de la création de la commande",
+                                "Erreur lors de la création de la commande 1",
                             });
                           }
                           res.status(201).json({
@@ -1244,7 +1244,8 @@ router.post("/commande/register", verifyToken, (req, res) => {
                     (error, result) => {
                       if (error) {
                         return res.status(500).json({
-                          message: "Erreur lors de la création de la commande",
+                          message:
+                            "Erreur lors de la création de la commande 2",
                         });
                       }
                       res.status(201).json({
