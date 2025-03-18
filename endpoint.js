@@ -691,7 +691,7 @@ router.get("/CB/client/:id", verifyToken, (req, res) => {
           .status(404)
           .json({ message: `Vendeur ${req.params.id} non trouvé` });
       }
-      res.json(result[0]);
+      res.json(result);
     },
   );
 });
@@ -1370,7 +1370,7 @@ router.get("/adresse/client/:id", verifyToken, (req, res) => {
           .status(404)
           .json({ message: "Adresse introuvable lors de la vérification" });
       }
-      res.json(result[0]);
+      res.json(result);
     },
   );
 });
