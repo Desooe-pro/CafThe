@@ -691,7 +691,7 @@ router.get("/CB/client/:id", verifyToken, (req, res) => {
           .status(404)
           .json({ message: `Vendeur ${req.params.id} non trouvé` });
       }
-      res.json(result);
+      res.json(result[0]);
     },
   );
 });
@@ -1135,6 +1135,9 @@ router.post("/commande/register", verifyToken, (req, res) => {
     Code_Postale,
     Id_Panier,
     Identifiant_Client,
+    adresse,
+    CB,
+    nbLignes,
   } = req.body;
   let Id_Adresse_1 = "";
 
@@ -1142,6 +1145,10 @@ router.post("/commande/register", verifyToken, (req, res) => {
     `SELECT * FROM ville WHERE Adresse_Ville = ? AND Nom_Ville = ?`,
     [Code_Postale, Ville],
     (error, result) => {
+      if (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
       if (result.length === 0) {
         db.query(
           `INSERT INTO ville (Adresse_Ville, Nom_Ville) VALUES (?, ?)`,
@@ -1153,10 +1160,6 @@ router.post("/commande/register", verifyToken, (req, res) => {
             }
           },
         );
-      }
-      if (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Erreur du serveur" });
       }
       db.query(
         `SELECT * FROM panier WHERE Id_Panier = ? AND Status = "Ouvert"`,
@@ -1200,8 +1203,16 @@ router.post("/commande/register", verifyToken, (req, res) => {
                       }
                       Id_Adresse_1 = result.insertId;
                       db.query(
-                        `INSERT INTO commande (Id_Panier, Id_Adresse_1) VALUES (?, ?)`,
-                        [Id_Panier, Id_Adresse_1],
+                        `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, Id_CB, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                          nbLignes,
+                          "Validée",
+                          adresse,
+                          Id_Adresse_1,
+                          CB,
+                          Id_Panier,
+                          Identifiant_Client,
+                        ],
                         (error, result) => {
                           if (error) {
                             return res.status(500).json({
@@ -1220,8 +1231,16 @@ router.post("/commande/register", verifyToken, (req, res) => {
                 } else {
                   Id_Adresse_1 = result[0].Id_Adresse;
                   db.query(
-                    `INSERT INTO commande (Id_Panier, Id_Adresse_1) VALUES (?, ?)`,
-                    [Id_Panier, Id_Adresse_1],
+                    `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, Id_CB, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                      nbLignes,
+                      "Validée",
+                      adresse,
+                      Id_Adresse_1,
+                      CB,
+                      Id_Panier,
+                      Identifiant_Client,
+                    ],
                     (error, result) => {
                       if (error) {
                         return res.status(500).json({
@@ -1244,7 +1263,117 @@ router.post("/commande/register", verifyToken, (req, res) => {
   );
 });
 
+/* Route d'annulation d'une commande
+ * POST /api/commande/annule/:id
+ */
+
+router.post("/commande/annule/:id", verifyToken, (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.body;
+
+  db.query(
+    "SELECT * FROM commande WHERE Id_Panier = ?",
+    [id],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      if (result.length === 0) {
+        return res.status(404).json({ message: "Commande non trouvée" });
+      } else {
+        db.query(
+          "DELETE FROM commande WHERE Id_Panier = ?",
+          [id],
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: "Erreur du serveur" });
+            } else {
+              db.query(
+                "SELECT Id_Panier FROM panier WHERE Status = 'Ouvert' AND Identifiant_Client = ?",
+                [userId],
+                (error, result) => {
+                  if (error) {
+                    return res
+                      .status(500)
+                      .json({ message: "Erreur du serveur" });
+                  }
+                  if (result.length === 0) {
+                    return res
+                      .status(404)
+                      .json({ message: "Panier non trouvée" });
+                  } else {
+                    const panierSupr = result[1].Id_Panier;
+                    db.query(
+                      "DELETE FROM ligne_de_panier WHERE Id_Panier = ?",
+                      [panierSupr],
+                      (error, result) => {
+                        if (error) {
+                          return res
+                            .status(500)
+                            .json({ message: "Erreur du serveur" });
+                        } else {
+                          db.query(
+                            "DELETE FROM panier WHERE Id_Panier = ?",
+                            [panierSupr],
+                            (error, result) => {
+                              if (error) {
+                                return res
+                                  .status(500)
+                                  .json({ message: "Erreur du serveur" });
+                              } else {
+                                db.query(
+                                  "UPDATE panier SET Status = 'Ouvert' WHERE Id_Panier = ?",
+                                  [id],
+                                  (error, result) => {
+                                    if (error) {
+                                      return res
+                                        .status(500)
+                                        .json({ message: "Erreur du serveur" });
+                                    }
+                                  },
+                                );
+                              }
+                            },
+                          );
+                        }
+                      },
+                    );
+                  }
+                },
+              );
+            }
+          },
+        );
+      }
+    },
+  );
+});
+
 // ======================== ADRESSE ======================== //
+
+/* Route pour récupérer l'adresse d'un client par son Id
+ * GET /api/adresse/client/:id
+ */
+
+router.get("/adresse/client/:id", verifyToken, (req, res) => {
+  const { id } = req.params;
+
+  db.query(
+    "SELECT * FROM adresse WHERE Identifiant_Client = ?",
+    [id],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur" });
+      }
+      if (result.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "Adresse introuvable lors de la vérification" });
+      }
+      res.json(result[0]);
+    },
+  );
+});
 
 /* Route : Enregistrer une adresse
  * POST /api/adresse/register
