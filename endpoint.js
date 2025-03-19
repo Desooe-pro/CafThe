@@ -9,6 +9,7 @@ require("dotenv").config();
 // npm install jsonwebtoken
 const jwt = require("jsonwebtoken");
 const { sign } = require("jsonwebtoken");
+const { query } = require("express");
 /* npm install --save-dev jest
  * npm install supertest
  */
@@ -357,6 +358,7 @@ router.post("/clients/login/connexion", (req, res) => {
                 mail: client.Mail_Client,
               },
               adresse: {
+                id: adresse.Id_Adresse,
                 NumeroVoie: adresse.Numero_Voie,
                 NomVoie: adresse.Nom_Type_Voie,
                 CodePostal: adresse.Code_postal_Voie,
@@ -1123,7 +1125,12 @@ router.post("/lignedepanier/supr", verifyToken, (req, res) => {
  *   "Adresse": "Rue de la Paix",
  *    "Ville": "Paris",
  *   "Code_Postale": "75001",
- *   "Id_Panier": "17"
+ *   "Id_Panier": "17",
+ *   "Identifiant_Client": "1",
+ *   "adresse": "11",
+ *   "type": "CB",
+ *   "CB": "1",
+ *   "nbLignes": "2"
  * }
  */
 
@@ -1136,6 +1143,7 @@ router.post("/commande/register", verifyToken, (req, res) => {
     Id_Panier,
     Identifiant_Client,
     adresse,
+    type,
     CB,
     nbLignes,
   } = req.body;
@@ -1203,27 +1211,42 @@ router.post("/commande/register", verifyToken, (req, res) => {
                       }
                       Id_Adresse_1 = result.insertId;
                       db.query(
-                        `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, Id_CB, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                          nbLignes,
-                          "Validée",
-                          adresse,
-                          Id_Adresse_1,
-                          CB,
-                          Id_Panier,
-                          Identifiant_Client,
+                        `INSERT INTO payement (Type, idCB) VALUES (?, ?)`[
+                          [type, CB]
                         ],
                         (error, result) => {
                           if (error) {
                             return res.status(500).json({
                               message:
-                                "Erreur lors de la création de la commande 1",
+                                "Erreur lors de la création de la ligne de payment",
                             });
+                          } else {
+                            let idPayement = result.insertId;
+                            db.query(
+                              `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                              [
+                                nbLignes,
+                                "Validée",
+                                adresse,
+                                Id_Adresse_1,
+                                idPayement,
+                                Id_Panier,
+                                Identifiant_Client,
+                              ],
+                              (error, result) => {
+                                if (error) {
+                                  return res.status(500).json({
+                                    message:
+                                      "Erreur lors de la création de la commande 1",
+                                  });
+                                }
+                                res.status(201).json({
+                                  message: "Commande réussie",
+                                  Commande_Id: result.insertId,
+                                });
+                              },
+                            );
                           }
-                          res.status(201).json({
-                            message: "Commande réussie",
-                            Commande_Id: result.insertId,
-                          });
                         },
                       );
                     },
@@ -1231,27 +1254,42 @@ router.post("/commande/register", verifyToken, (req, res) => {
                 } else {
                   Id_Adresse_1 = result[0].Id_Adresse;
                   db.query(
-                    `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, Id_CB, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                      nbLignes,
-                      "Validée",
-                      adresse,
-                      Id_Adresse_1,
-                      CB,
-                      Id_Panier,
-                      Identifiant_Client,
+                    `INSERT INTO payement (Type, idCB) VALUES (?, ?)`[
+                      [type, CB]
                     ],
                     (error, result) => {
                       if (error) {
                         return res.status(500).json({
                           message:
-                            "Erreur lors de la création de la commande 2",
+                            "Erreur lors de la création de la ligne de payment",
                         });
+                      } else {
+                        let idPayement = result.insertId;
+                        db.query(
+                          `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                          [
+                            nbLignes,
+                            "Validée",
+                            adresse,
+                            Id_Adresse_1,
+                            idPayement,
+                            Id_Panier,
+                            Identifiant_Client,
+                          ],
+                          (error, result) => {
+                            if (error) {
+                              return res.status(500).json({
+                                message:
+                                  "Erreur lors de la création de la commande 1",
+                              });
+                            }
+                            res.status(201).json({
+                              message: "Commande réussie",
+                              Commande_Id: result.insertId,
+                            });
+                          },
+                        );
                       }
-                      res.status(201).json({
-                        message: "Commande réussie",
-                        Commande_Id: result.insertId,
-                      });
                     },
                   );
                 }
@@ -1260,6 +1298,59 @@ router.post("/commande/register", verifyToken, (req, res) => {
           }
         },
       );
+    },
+  );
+});
+
+/* Route d'enregistrement d'une commande à régler en Boutique
+ * POST /api/commande/boutique/register
+ *  {
+ *   "Id_Panier": "17",
+ *   "Identifiant_Client": "1",
+ *   "adresse": "11",
+ *   "nbLignes": "2"
+ */
+
+router.post("/commande/boutique/register", verifyToken, (req, res) => {
+  const { Id_Panier, Identifiant_Client, adresse, nbLignes } = req.body;
+
+  db.query(
+    `SELECT * FROM panier WHERE Id_Panier = ? AND Status = "Ouvert"`,
+    [Id_Panier],
+    (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: "Erreur du serveur 1" });
+      }
+      if (result.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "Panier non trouvé ou déjà commandé" });
+      } else {
+        db.query(
+          `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client, Date_prise_Commande) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            nbLignes,
+            "Validée",
+            adresse,
+            1,
+            0,
+            Id_Panier,
+            Identifiant_Client,
+            new Date(),
+          ],
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({
+                message: "Erreur lors de la création de la commande 1",
+              });
+            }
+            res.status(201).json({
+              message: "Commande réussie",
+              Commande_Id: result.insertId,
+            });
+          },
+        );
+      }
     },
   );
 });
@@ -1282,6 +1373,8 @@ router.post("/commande/annule/:id", verifyToken, (req, res) => {
       if (result.length === 0) {
         return res.status(404).json({ message: "Commande non trouvée" });
       } else {
+        console.log(result);
+        let idPayement = result[0].idPayement;
         db.query(
           "DELETE FROM commande WHERE Id_Panier = ?",
           [id],
@@ -1289,6 +1382,19 @@ router.post("/commande/annule/:id", verifyToken, (req, res) => {
             if (error) {
               return res.status(500).json({ message: "Erreur du serveur" });
             } else {
+              if (!idPayement == 0) {
+                db.query(
+                  "DELETE FROM payement WHERE idPayement = ?",
+                  [idPayement],
+                  (error, result) => {
+                    if (error) {
+                      return res.status(500).json({
+                        message: "Erreur du serveur",
+                      });
+                    }
+                  },
+                );
+              }
               db.query(
                 "SELECT Id_Panier FROM panier WHERE Status = 'Ouvert' AND Identifiant_Client = ?",
                 [userId],
