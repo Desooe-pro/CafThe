@@ -1223,7 +1223,7 @@ router.post("/commande/register", verifyToken, (req, res) => {
                           } else {
                             let idPayement = result.insertId;
                             db.query(
-                              `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                              `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client, Date_prise_Commande) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                               [
                                 nbLignes,
                                 "Validée",
@@ -1232,6 +1232,7 @@ router.post("/commande/register", verifyToken, (req, res) => {
                                 idPayement,
                                 Id_Panier,
                                 Identifiant_Client,
+                                new Date(),
                               ],
                               (error, result) => {
                                 if (error) {
@@ -1266,7 +1267,7 @@ router.post("/commande/register", verifyToken, (req, res) => {
                       } else {
                         let idPayement = result.insertId;
                         db.query(
-                          `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                          `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client, Date_prise_Commande) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                           [
                             nbLignes,
                             "Validée",
@@ -1275,6 +1276,7 @@ router.post("/commande/register", verifyToken, (req, res) => {
                             idPayement,
                             Id_Panier,
                             Identifiant_Client,
+                            new Date(),
                           ],
                           (error, result) => {
                             if (error) {
@@ -1327,7 +1329,7 @@ router.post("/commande/boutique/register", verifyToken, (req, res) => {
           .json({ message: "Panier non trouvé ou déjà commandé" });
       } else {
         db.query(
-          `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client, Date_prise_Commande) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO commande (Nombre_Ligne_de_commande, Status_Commande, Id_Adresse, Id_Adresse_1, idPayement, Id_Panier, Identifiant_Client, Date_prise_Commande, Id_Vendeur) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
           [
             nbLignes,
             "Validée",
