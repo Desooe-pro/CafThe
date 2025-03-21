@@ -10,6 +10,17 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3001",
+      "https://cafthe.sacha.allardin.dev-campus.fr",
+    ], // Remplacez par les URLs de votre front-end
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+
 // Utilisation des routes
 app.use("/api", routes);
 
