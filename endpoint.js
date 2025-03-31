@@ -827,6 +827,7 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
               return res.status(404).json({ message: "Article non trouvé 2" });
             } else {
               prix = result[0].Prix_unitaire_Article;
+              const nbArticle = result[0].Quantite_Article;
               db.query(
                 `SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?`,
                 [Id_Article, Id_Panier],
@@ -837,31 +838,54 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
                       .json({ message: "Erreur du serveur 3" });
                   }
                   if (result.length === 0) {
-                    db.query(
-                      `INSERT INTO ligne_de_panier (Id_Panier, Quantite_Ligne_de_panier, Prix_unitaire_Ligne_de_panier, Id_Article) VALUES (?, 1, ?, ?)`,
-                      [Id_Panier, prix, Id_Article],
-                      (error, result) => {
-                        if (error) {
-                          return res.status(500).json({
-                            message:
-                              "Erreur lors de la création de la ligne de panier 1",
+                    if (nbArticle > 0) {
+                      db.query(
+                        `INSERT INTO ligne_de_panier (Id_Panier, Quantite_Ligne_de_panier, Prix_unitaire_Ligne_de_panier, Id_Article) VALUES (?, 1, ?, ?)`,
+                        [Id_Panier, prix, Id_Article],
+                        (error, result) => {
+                          if (error) {
+                            return res.status(500).json({
+                              message:
+                                "Erreur lors de la création de la ligne de panier 1",
+                            });
+                          }
+                          res.status(201).json({
+                            message: "Ajout réussie",
+                            Ligne_Id: result.insertId,
                           });
-                        }
-                        res.status(201).json({
-                          message: "Ajout réussie",
-                          Ligne_Id: result.insertId,
-                        });
-                      },
-                    );
+                        },
+                      );
+                    }
                   } else {
                     db.query(
-                      "UPDATE ligne_de_panier SET Quantite_Ligne_de_panier = Quantite_Ligne_de_panier + 1 WHERE Id_Article = ? AND Id_Panier = ?",
-                      [Id_Article, Id_Panier],
-                      (req, res) => {
+                      "SELECT * FROM ligne_de_panier WHERE Id_Article = ?",
+                      [Id_Article],
+                      (error, result) => {
                         if (error) {
-                          return res.status(500).json({
+                          return res
+                            .status(500)
+                            .json({ message: "Erreur du serveur 0" });
+                        }
+                        if (
+                          result[0].Quantite_Ligne_de_panier + 1 <=
+                          nbArticle
+                        ) {
+                          db.query(
+                            "UPDATE ligne_de_panier SET Quantite_Ligne_de_panier = Quantite_Ligne_de_panier + 1 WHERE Id_Article = ? AND Id_Panier = ?",
+                            [Id_Article, Id_Panier],
+                            (req, res) => {
+                              if (error) {
+                                return res.status(500).json({
+                                  message:
+                                    "Erreur lors de la création de la ligne de panier 2",
+                                });
+                              }
+                            },
+                          );
+                        } else {
+                          return res.status(300).json({
                             message:
-                              "Erreur lors de la création de la ligne de panier 2",
+                              "Vous essayez de mettre plus d'articles dans votre panier qu'il n'y en a dans notre stock",
                           });
                         }
                       },
@@ -990,7 +1014,7 @@ router.post("/lignedepanier/maj", verifyToken, (req, res) => {
             if (result.length === 0) {
               return res.status(404).json({ message: "Article non trouvé 2" });
             }
-            if (result[0].Nombre_de_vente_Article < nouveauNombre) {
+            if (result[0].Quantite_Article < nouveauNombre) {
               return res
                 .status(300)
                 .json({ message: "Pas assez d'aticles en stock" });
