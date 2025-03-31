@@ -1255,9 +1255,8 @@ router.post("/commande/register", verifyToken, (req, res) => {
                 } else {
                   Id_Adresse_1 = result[0].Id_Adresse;
                   db.query(
-                    `INSERT INTO payement (Type, idCB) VALUES (?, ?)`[
-                      [type, CB]
-                    ],
+                    `INSERT INTO payement (Type, idCB) VALUES (?, ?)`,
+                    [type, CB],
                     (error, result) => {
                       if (error) {
                         return res.status(500).json({
