@@ -858,8 +858,8 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
                     }
                   } else {
                     db.query(
-                      "SELECT * FROM ligne_de_panier WHERE Id_Article = ?",
-                      [Id_Article],
+                      "SELECT * FROM ligne_de_panier WHERE Id_Article = ? AND Id_Panier = ?",
+                      [Id_Article, Id_Panier],
                       (error, result) => {
                         if (error) {
                           return res
@@ -867,18 +867,22 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
                             .json({ message: "Erreur du serveur 0" });
                         }
                         if (
-                          result[0].Quantite_Ligne_de_panier + 1 <=
+                          parseInt(result[0].Quantite_Ligne_de_panier) + 1 <=
                           nbArticle
                         ) {
                           db.query(
                             "UPDATE ligne_de_panier SET Quantite_Ligne_de_panier = Quantite_Ligne_de_panier + 1 WHERE Id_Article = ? AND Id_Panier = ?",
                             [Id_Article, Id_Panier],
-                            (req, res) => {
+                            (error, result) => {
                               if (error) {
                                 return res.status(500).json({
                                   message:
                                     "Erreur lors de la création de la ligne de panier 2",
                                 });
+                              } else {
+                                return res
+                                  .status(201)
+                                  .json({ message: "Ajout réussi" });
                               }
                             },
                           );
