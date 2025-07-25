@@ -379,7 +379,11 @@ router.post("/clients/login/connexion", (req, res) => {
  */
 
 router.get("/vendeur", verifyToken, (req, res) => {
-  db.query(`SELECT * FROM vendeur`, (error, result) => {
+  db.query(`select u.name, u.tel, u.email, u.salaire
+            from users as u
+                inner join user_job as uj on uj.id_user = u.id
+                inner join jobs as j on j.id = uj.id_job
+            where j.Title = 'Vendeur'`, (error, result) => {
     if (error) {
       return res.status(500).json({ message: "Erreur du serveur" });
     }
@@ -396,7 +400,12 @@ router.get("/vendeur", verifyToken, (req, res) => {
 
 router.get("/vendeur/:id", verifyToken, (req, res) => {
   db.query(
-    `SELECT * FROM vendeur WHERE Id_Vendeur = ?`,
+    `select u.name, u.tel, u.email, u.salaire
+     from users as u
+        inner join user_job as uj on uj.id_user = u.id
+        inner join jobs as j on j.id = uj.id_job
+     where j.Title = 'Vendeur'
+        and u.id = ?`,
     [req.params.id],
     (error, result) => {
       if (error) {
@@ -418,7 +427,12 @@ router.get("/vendeur/:id", verifyToken, (req, res) => {
 
 router.get("/vendeur/like/:id", verifyToken, (req, res) => {
   db.query(
-    `SELECT * FROM vendeur WHERE Id_Vendeur LIKE "%${req.params.id}%"`,
+    `select u.name, u.tel, u.email, u.salaire
+     from users as u
+        inner join user_job as uj on uj.id_user = u.id
+        inner join jobs as j on j.id = uj.id_job
+     where j.Title = 'Vendeur'
+       and u.id like "%${req.params.id}%"`,
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
@@ -452,16 +466,46 @@ router.post("/vendeur/register", verifyToken, (req, res) => {
 
   // Vérifie que l'adresse mail n'est pas déjà utilisé
   db.query(
-    "SELECT * FROM vendeur WHERE Mail_Vendeur = ?",
+    "SELECT * FROM users WHERE mail = ?",
     [Mail],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
       }
       if (result.length > 0) {
-        return res
-          .status(400)
-          .json({ message: "Cette adresse mail est déjà utilisée" });
+          db.query(`select u.id, u.name, u.tel, u.email, u.salaire
+                    from users as u
+                        inner join user_job as uj on uj.id_user = u.id
+                        inner join jobs as j on j.id = uj.id_job
+                    where j.Title = 'Vendeur'
+                        and u.email = ?`,
+              [Mail],
+              (error, result) => {
+                  if (error) {
+                      return res.status(500).json({ message: "Erreur du serveur" });
+                  }
+                  if (result.length > 0) {
+                      return res
+                          .status(400)
+                          .json({ message: "Cette adresse mail est déjà utilisée" });
+                  } else {
+                      const vendeurId = result.id;
+                      db.query(`update user_job as uj
+                                set uj.id_job = 2
+                                where uj.id_user = ?`,
+                          [vendeurId],
+                          (error, result) => {
+                          if (error) {
+                              return res.status(500).json({ message: "Erreur du serveur" });
+                          } else {
+                              res.status(201).json({
+                                  message: "Inscription réussie",
+                                  vendeur_id: vendeurId,
+                              });
+                          }
+                      })
+                  }
+              })
       } else {
         bcrypt.hash(MDP, 10, (error, hash) => {
           if (error) {
