@@ -84,7 +84,12 @@ router.get("/produits/fiche/:id", (req, res) => {
 
 router.get("/clients/:id", (req, res) => {
   db.query(
-    `SELECT * FROM client WHERE Identifiant_Client = ?`,
+    `select u.name, u.tel, u.email, u.salaire
+     from users as u
+        inner join user_job as uj on uj.id_user = u.id
+        inner join jobs as j on j.id = uj.id_job
+     where j.Title = 'Client'
+        and u.id = ?`,
     [req.params.id],
     (error, result) => {
       if (error) {
@@ -106,7 +111,12 @@ router.get("/clients/:id", (req, res) => {
 
 router.get("/clients/like/:nom", (req, res) => {
   db.query(
-    `SELECT * FROM client WHERE Nom_Prenom_Client LIKE "%${req.params.nom}%"`,
+    `select u.name, u.tel, u.email, u.salaire
+     from users as u
+        inner join user_job as uj on uj.id_user = u.id
+        inner join jobs as j on j.id = uj.id_job
+     where j.Title = 'Client'
+        and u.name like "%${req.params.nom}%"`,
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
@@ -139,7 +149,7 @@ router.post("/clients/register", (req, res) => {
 
   // Vérifie que l'adresse mail n'est pas déjà utilisé
   db.query(
-    "SELECT * FROM client WHERE Mail_Client = ?",
+    "SELECT * FROM users WHERE email = ?",
     [Mail],
     (error, result) => {
       if (error) {
@@ -157,7 +167,7 @@ router.post("/clients/register", (req, res) => {
 
           // Insertion du nouveau client
           db.query(
-            "INSERT INTO client (Nom_Prenom_Client, Date_de_naissance_Client, Tel_Client, Mail_Client, MDP_Client) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO users (name, DateNaissance, tel, email, password) VALUES (?, ?, ?, ?, ?)",
             [nomPrenom, date, Tel, Mail, hash],
             (error, result) => {
               if (error) {
@@ -182,16 +192,14 @@ router.post("/clients/register", (req, res) => {
  * Get /api/clients/pwmodif/:id
  */
 
-router.put("/clients/pwmodif/:id", verifyToken, (req, res) => {
-  const pw = req.body.pw;
-
+router.put("/clients/pwmodif", verifyToken, (req, res) => {
   bcrypt.hash(pw, 10, (error, hash) => {
     if (error) {
       return res.status(500).json({ message: "Erreur de hash" });
     }
     db.query(
-      `UPDATE client SET MDP_Client = ? WHERE Identifiant_Client = ?`,
-      [hash, req.params.id],
+      `UPDATE users SET password = ? WHERE id = ?`,
+      [hash, req.client.id],
       (error, result) => {
         if (error) {
           return res.status(500).json({
@@ -211,11 +219,11 @@ router.put("/clients/pwmodif/:id", verifyToken, (req, res) => {
  * Put /api/clients/nommodif/:id
  */
 
-router.put("/clients/nommodif/:id", verifyToken, (req, res) => {
+router.put("/clients/nommodif", verifyToken, (req, res) => {
   const { nom } = req.body;
-  const id = req.params.id;
+  const id = req.client.id;
   db.query(
-    "UPDATE client SET Nom_Prenom_Client = ? WHERE Identifiant_Client = ?",
+    "UPDATE users SET name = ? WHERE id = ?",
     [nom, id],
     (error, result) => {
       if (error) {
@@ -233,12 +241,12 @@ router.put("/clients/nommodif/:id", verifyToken, (req, res) => {
  * Put /api/clients/mailmodif/:id
  */
 
-router.put("/clients/mailmodif/:id", verifyToken, (req, res) => {
+router.put("/clients/mailmodif", verifyToken, (req, res) => {
   const { mail } = req.body;
-  const id = req.params.id;
+  const id = req.client.id;
 
   db.query(
-    "UPDATE client SET Mail_Client = ? WHERE Identifiant_Client = ?",
+    "UPDATE users SET email = ? WHERE id = ?",
     [mail, id],
     (error, result) => {
       if (error) {
@@ -256,12 +264,12 @@ router.put("/clients/mailmodif/:id", verifyToken, (req, res) => {
  * Put /api/clients/adressemodif/:id
  */
 
-router.put("/clients/adressemodif/:id", verifyToken, (req, res) => {
+router.put("/clients/adressemodif", verifyToken, (req, res) => {
   const { num, rue, ville, code } = req.body;
-  const id = req.params.id;
+  const id = req.client.id;
 
   db.query(
-    "UPDATE adresse SET Numero_Voie = ?, Nom_Type_Voie = ?, Nom_commune_Adresse = ?, Code_postal_Voie = ? WHERE Identifiant_Client = ?",
+    "UPDATE adresse SET Numero_Voie = ?, Nom_Type_Voie = ?, Nom_commune_Adresse = ?, Code_postal_Voie = ? WHERE is_user = ?",
     [num, rue, ville, code, id],
     (error, result) => {
       if (error) {
@@ -293,8 +301,8 @@ router.post("/clients/login/connexion", (req, res) => {
   db.query(
     // Requête préparée
     `SELECT *
-     FROM client
-     WHERE Mail_Client = ?`,
+     FROM users
+     WHERE email = ?`,
     [mail],
     (error, result) => {
       if (error) {
@@ -309,7 +317,7 @@ router.post("/clients/login/connexion", (req, res) => {
       const client = result[0];
 
       /* Vérification du mot de passe */
-      bcrypt.compare(pw, client.MDP_Client, (error, isMatch) => {
+      bcrypt.compare(pw, client.password, (error, isMatch) => {
         if (error) {
           return res
             .status(500)
@@ -323,14 +331,14 @@ router.post("/clients/login/connexion", (req, res) => {
 
         // Génération d'un token JWT
         const token = sign(
-          { id: client.Identifiant_Client, mail: client.Mail_Client },
+          { id: client.id, mail: client.email },
           process.env.JWT_SECRET,
           { expiresIn: "30d" },
         );
 
         db.query(
-          `SELECT * FROM adresse WHERE Identifiant_Client = ?`,
-          [client.Identifiant_Client],
+          `SELECT * FROM adresse WHERE id_user = ?`,
+          [client.id],
           (error, result) => {
             if (error) {
               return res.status(500).json({ message: "Erreur du server" });
@@ -340,9 +348,9 @@ router.post("/clients/login/connexion", (req, res) => {
                 message: "Connexion sans adresse réussie",
                 token,
                 client: {
-                  id: client.Identifiant_Client,
-                  nom: client.Nom_Prenom_Client,
-                  mail: client.Mail_Client,
+                  id: client.id,
+                  nom: client.name,
+                  mail: client.email,
                 },
               });
             }
@@ -353,9 +361,9 @@ router.post("/clients/login/connexion", (req, res) => {
               message: "Connexion avec adresse réussie",
               token,
               client: {
-                id: client.Identifiant_Client,
-                nom: client.Nom_Prenom_Client,
-                mail: client.Mail_Client,
+                id: client.id,
+                nom: client.name,
+                mail: client.email,
               },
               adresse: {
                 id: adresse.Id_Adresse,
@@ -556,8 +564,12 @@ router.get("/paniers", verifyToken, (req, res) => {
 
 router.get("/paniers/:id", verifyToken, (req, res) => {
   db.query(
-    `SELECT * FROM panier WHERE Id_Panier = ?`,
-    [req.params.id],
+    `select *
+     from panier as p
+        inner join users as u on u.id = p.id_user
+     where p.Id_Panier = ?
+       and u.id = ?`,
+    [req.params.id, req.client.id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
@@ -577,21 +589,43 @@ router.get("/paniers/:id", verifyToken, (req, res) => {
  */
 
 router.get("/paniers/client/:id", verifyToken, (req, res) => {
-  db.query(
-    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
-    [req.params.id],
-    (error, result) => {
+  db.query(`select *
+            from users as u
+            inner join user_job as uj on uj.id_user = u.id
+            inner join jobs as j on j.id = uj.id_job
+            where u.id = ?
+                and j.Title in ('Admin', 'Vendeur')`,
+      [req.client.id],
+      (error, result) => {
       if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
+          return res.status(500).json({ message: "Erreur du serveur" });
       }
-      if (result.length === 0) {
-        return res
-          .status(404)
-          .json({ message: `Produit ${req.params.id} non trouvé` });
+      if (result > 0) {
+          db.query(
+              `select *
+              from panier as p
+              inner join users as u on u.id = p.id_user
+              inner join user_job as uj on uj.id_user = u.id
+              inner join jobs as j on j.id = uj.id_job
+              where u.id = 1
+                  and j.Title not in ('Admin', 'Vendeur')`,
+              [req.params.id],
+              (error, result) => {
+                  if (error) {
+                      return res.status(500).json({ message: "Erreur du serveur" });
+                  }
+                  if (result.length === 0) {
+                      return res
+                          .status(404)
+                          .json({ message: `Panier ${req.params.id} non trouvé` });
+                  }
+                  res.json(result);
+              },
+          );
+      } else {
+          return res.status(403).json({message: "Vous n'avez pas les droits nécessaires pour voir les paniers de cet utilisateur !", error: 'Forbidden' })
       }
-      res.json(result);
-    },
-  );
+  })
 });
 
 /* Route : Récupérer le panier ouvert par l'ID du client
@@ -599,35 +633,58 @@ router.get("/paniers/client/:id", verifyToken, (req, res) => {
  */
 
 router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
-  db.query(
-    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
-    [req.params.id],
-    (error, result) => {
-      if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
-      }
-      if (result.length === 0) {
-        return res
-          .status(404)
-          .json({ message: `Produit ${req.params.id} non trouvé` });
-      }
-      db.query(
-        `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "Ouvert"`,
-        [req.params.id],
-        (error, result2) => {
-          if (error) {
-            return res.status(500).json({ message: "Erreur du serveur" });
-          }
-          if (result2.length === 0) {
-            return res
-              .status(404)
-              .json({ message: `Pas de panier ouvert trouvé` });
-          }
-          res.json(result2[0]);
-        },
-      );
-    },
-  );
+    db.query(`select *
+            from users as u
+            inner join user_job as uj on uj.id_user = u.id
+            inner join jobs as j on j.id = uj.id_job
+            where u.id = ?
+                and j.Title in ('Admin', 'Vendeur')`,
+        [req.client.id],
+        (error, result) => {
+            if (error) {
+                return res.status(500).json({message: "Erreur du serveur"});
+            }
+            if (result > 0) {
+                db.query(
+                    `SELECT *
+                     FROM panier
+                     WHERE id_user = ?`,
+                    [req.params.id],
+                    (error, result) => {
+                        if (error) {
+                            return res.status(500).json({message: "Erreur du serveur"});
+                        }
+                        if (result.length === 0) {
+                            return res
+                                .status(404)
+                                .json({message: `Client ${req.params.id} non trouvé`});
+                        }
+                        db.query(
+                            `SELECT *
+                             FROM panier
+                             WHERE id_user = ?
+                               AND Status = 'Ouvert'`,
+                            [req.params.id],
+                            (error, result2) => {
+                                if (error) {
+                                    return res.status(500).json({message: "Erreur du serveur"});
+                                }
+                                if (result2.length === 0) {
+                                    return res
+                                        .status(404)
+                                        .json({message: `Pas de panier ouvert trouvé`});
+                                }
+                                res.json(result2[0]);
+                            },
+                        );
+                    })
+            } else {
+                return res.status(403).json({
+                    message: "Vous n'avez pas les droits nécessaires pour voir les paniers de cet utilisateur !",
+                    error: 'Forbidden'
+                })
+            }
+        });
 });
 
 /* Route : Récupérer les paniers fermés par l'ID du client
@@ -635,35 +692,58 @@ router.get("/paniers/client/open/:id", verifyToken, (req, res) => {
  */
 
 router.get("/paniers/client/closed/:id", verifyToken, (req, res) => {
-  db.query(
-    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
-    [req.params.id],
-    (error, result) => {
-      if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
-      }
-      if (result.length === 0) {
-        return res
-          .status(404)
-          .json({ message: `Produit ${req.params.id} non trouvé` });
-      }
-      db.query(
-        `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "Fermé"`,
-        [req.params.id],
-        (error, result2) => {
-          if (error) {
-            return res.status(500).json({ message: "Erreur du serveur" });
-          }
-          if (result2.length === 0) {
-            return res
-              .status(404)
-              .json({ message: `Pas de panier fermé trouvé` });
-          }
-          res.json(result2);
-        },
-      );
-    },
-  );
+    db.query(`select *
+              from users as u
+                       inner join user_job as uj on uj.id_user = u.id
+                       inner join jobs as j on j.id = uj.id_job
+              where u.id = ?
+                and j.Title in ('Admin', 'Vendeur')`,
+        [req.client.id],
+        (error, result) => {
+            if (error) {
+                return res.status(500).json({message: "Erreur du serveur"});
+            }
+            if (result > 0) {
+                db.query(
+                    `SELECT *
+                     FROM panier
+                     WHERE id_user = ?`,
+                    [req.params.id],
+                    (error, result) => {
+                        if (error) {
+                            return res.status(500).json({message: "Erreur du serveur"});
+                        }
+                        if (result.length === 0) {
+                            return res
+                                .status(404)
+                                .json({message: `Client ${req.params.id} non trouvé`});
+                        }
+                        db.query(
+                            `SELECT *
+                             FROM panier
+                             WHERE id_user = ?
+                               AND Status = 'Fermé'`,
+                            [req.params.id],
+                            (error, result2) => {
+                                if (error) {
+                                    return res.status(500).json({message: "Erreur du serveur"});
+                                }
+                                if (result2.length === 0) {
+                                    return res
+                                        .status(404)
+                                        .json({message: `Pas de panier ouvert trouvé`});
+                                }
+                                res.json(result2[0]);
+                            },
+                        );
+                    })
+            } else {
+                return res.status(403).json({
+                    message: "Vous n'avez pas les droits nécessaires pour voir les paniers de cet utilisateur !",
+                    error: 'Forbidden'
+                })
+            }
+        });
 });
 
 /* Route : Récupérer les paniers en commande par l'ID du client
@@ -671,35 +751,58 @@ router.get("/paniers/client/closed/:id", verifyToken, (req, res) => {
  */
 
 router.get("/paniers/client/commanded/:id", verifyToken, (req, res) => {
-  db.query(
-    `SELECT * FROM panier WHERE Identifiant_Client = ?`,
-    [req.params.id],
-    (error, result) => {
-      if (error) {
-        return res.status(500).json({ message: "Erreur du serveur" });
-      }
-      if (result.length === 0) {
-        return res
-          .status(404)
-          .json({ message: `Produit ${req.params.id} non trouvé` });
-      }
-      db.query(
-        `SELECT * FROM panier WHERE Identifiant_Client = ? AND Status = "En commande"`,
-        [req.params.id],
-        (error, result2) => {
-          if (error) {
-            return res.status(500).json({ message: "Erreur du serveur" });
-          }
-          if (result2.length === 0) {
-            return res
-              .status(404)
-              .json({ message: `Pas de panier en commande trouvé` });
-          }
-          res.json(result2);
-        },
-      );
-    },
-  );
+    db.query(`select *
+              from users as u
+                       inner join user_job as uj on uj.id_user = u.id
+                       inner join jobs as j on j.id = uj.id_job
+              where u.id = ?
+                and j.Title in ('Admin', 'Vendeur')`,
+        [req.client.id],
+        (error, result) => {
+            if (error) {
+                return res.status(500).json({message: "Erreur du serveur"});
+            }
+            if (result > 0) {
+                db.query(
+                    `SELECT *
+                     FROM panier
+                     WHERE id_user = ?`,
+                    [req.params.id],
+                    (error, result) => {
+                        if (error) {
+                            return res.status(500).json({message: "Erreur du serveur"});
+                        }
+                        if (result.length === 0) {
+                            return res
+                                .status(404)
+                                .json({message: `Client ${req.params.id} non trouvé`});
+                        }
+                        db.query(
+                            `SELECT *
+                             FROM panier
+                             WHERE id_user = ?
+                               AND Status = 'En commande'`,
+                            [req.params.id],
+                            (error, result2) => {
+                                if (error) {
+                                    return res.status(500).json({message: "Erreur du serveur"});
+                                }
+                                if (result2.length === 0) {
+                                    return res
+                                        .status(404)
+                                        .json({message: `Pas de panier ouvert trouvé`});
+                                }
+                                res.json(result2[0]);
+                            },
+                        );
+                    })
+            } else {
+                return res.status(403).json({
+                    message: "Vous n'avez pas les droits nécessaires pour voir les paniers de cet utilisateur !",
+                    error: 'Forbidden'
+                })
+            }
+        });
 });
 
 // ======================== CB ======================== //
