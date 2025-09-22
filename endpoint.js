@@ -817,7 +817,7 @@ router.get("/CB", verifyToken, (req, res) => {
       return res.status(500).json({ message: "Erreur du serveur" });
     }
     if (result.length === 0) {
-      return res.status(404).json({ message: `Vendeurs non trouvé` });
+      return res.status(404).json({ message: `CBs non trouvé` });
     }
     res.json(result);
   });
@@ -829,8 +829,8 @@ router.get("/CB", verifyToken, (req, res) => {
 
 router.get("/CB/client/:id", verifyToken, (req, res) => {
   db.query(
-    `SELECT *FROM carte_bancaire AS C WHERE C.Identifiant_Client = ?`,
-    [req.params.id],
+    `SELECT * FROM carte_bancaire AS C WHERE C.id_user = ?`,
+    [req.client.id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
@@ -851,7 +851,7 @@ router.get("/CB/client/:id", verifyToken, (req, res) => {
 
 router.get("/CB/client/like/:nom", verifyToken, (req, res) => {
   db.query(
-    `SELECT * FROM carte_bancaire AS C WHERE C.Identifiant_Client = (SELECT CL.Identifiant_Client FROM client AS CL WHERE CL.Nom_Prenom_Client LIKE "%${req.params.nom}%")`,
+    `SELECT * FROM carte_bancaire AS C WHERE C.id_user = (SELECT U.id FROM users AS U WHERE U.name LIKE "%${req.params.nom}%")`,
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
@@ -859,7 +859,7 @@ router.get("/CB/client/like/:nom", verifyToken, (req, res) => {
       if (result.length === 0) {
         return res
           .status(404)
-          .json({ message: `Vendeur ${req.params.id} non trouvé` });
+          .json({ message: `CB ${req.params.id} non trouvé` });
       }
       res.json(result);
     },
@@ -896,7 +896,7 @@ router.post("/CB/register", verifyToken, (req, res) => {
           .json({ message: "Cette carte bancaire est déjà enregistrée" });
       } else {
         db.query(
-          "INSERT INTO carte_bancaire (Type_CB, Numero_CB, Date_expiration_CB, Nom_CB, Identifiant_Client) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO carte_bancaire (Type_CB, Numero_CB, Date_expiration_CB, Nom_CB, id_user) VALUES (?, ?, ?, ?, ?)",
           [
             Type_CB,
             New_Numero_CB,
@@ -930,8 +930,8 @@ router.get("/lignedepanier/:id", verifyToken, (req, res) => {
   const id = req.params.id;
 
   db.query(
-    "SELECT * FROM ligne_de_panier WHERE Id_Panier = ?",
-    [id],
+    "SELECT * FROM ligne_de_panier as ldp inner join panier as p on p.Id_Panier = ldp.Id_Panier and p.id_user = ? WHERE ldp.Id_Panier = ?",
+    [req.client.id, id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur" });
@@ -954,8 +954,8 @@ router.post("/lignedepanier/add", verifyToken, (req, res) => {
   let prix = 0;
 
   db.query(
-    `SELECT * FROM panier WHERE Id_Panier = ?`,
-    [Id_Panier],
+    `SELECT * FROM panier WHERE Id_Panier = ? and id_user = ?`,
+    [Id_Panier, req.client.id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur 1" });
@@ -1064,8 +1064,8 @@ router.post("/lignedepanier/sub", verifyToken, (req, res) => {
   const { Id_Panier, Id_Article } = req.body;
 
   db.query(
-    `SELECT * FROM panier WHERE Id_Panier = ?`,
-    [Id_Panier],
+    `SELECT * FROM panier WHERE Id_Panier = ? and id_user = ?`,
+    [Id_Panier, req.client.id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur 1" });
@@ -1146,8 +1146,8 @@ router.post("/lignedepanier/maj", verifyToken, (req, res) => {
   const { Id_Panier, Id_Article, nouveauNombre } = req.body;
 
   db.query(
-    `SELECT * FROM panier WHERE Id_Panier = ?`,
-    [Id_Panier],
+    `SELECT * FROM panier WHERE Id_Panier = ? and id_user = ?`,
+    [Id_Panier, req.client.id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur 1" });
@@ -1231,8 +1231,8 @@ router.post("/lignedepanier/supr", verifyToken, (req, res) => {
   const { Id_Panier, Id_Article } = req.body;
 
   db.query(
-    `SELECT * FROM panier WHERE Id_Panier = ?`,
-    [Id_Panier],
+    `SELECT * FROM panier WHERE Id_Panier = ? and id_user = ?`,
+    [Id_Panier, req.client.id],
     (error, result) => {
       if (error) {
         return res.status(500).json({ message: "Erreur du serveur 1" });
